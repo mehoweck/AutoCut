@@ -49,6 +49,11 @@ module AutoCut
       end
     end
 
+    # Resolves a solver name string (e.g. 'bf') to the corresponding solver object.
+    def self.solver_for(name)
+      name.to_s == 'bf' ? BRUTE_FORCE : GREEDY
+    end
+
     # Builds order summary: { cross_section_string => { source_length => piece_count } }
     def self.build_order(cross_results)
       cross_results.each_with_object({}) do |(cross, result), order|

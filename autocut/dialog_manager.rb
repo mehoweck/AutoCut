@@ -1,30 +1,45 @@
 # autocut/dialog_manager.rb
 # Owns the HtmlDialog lifecycle: creates the window, registers JS↔Ruby callbacks,
-# computes the initial payload, and serializes data for the JavaScript layer.
+# serializes data for the JavaScript layer, and delegates to Exporter for CSV output.
+#
+# Business logic (optimization, settings persistence) is intentionally kept outside
+# this module — it is received via the initial_result hash and the recalculate proc.
 
 module AutoCut
   module DialogManager
     DIALOG_FILE = File.join(__dir__, 'dialog', 'index.html')
 
-    SOLVERS = {
-      'greedy' => Optimizer::GREEDY,
-      'bf'     => Optimizer::BRUTE_FORCE
-    }.freeze
+    # instances      — raw per-instance scan data (for CSV export)
+    # aggregated     — grouped definition data (for display and export)
+    # initial_result — { cross_results:, order:, lengths:, cut_loss: }
+    # scope_label    — human-readable scan scope description
+    # recalculate:   — proc(lengths_str, cut_loss, solver_name) → result hash (same shape as initial_result)
+    def self.show(instances, aggregated, initial_result, scope_label, recalculate:)
+      dialog      = build_dialog
+      last_result = initial_result
 
-    def self.show(instances, aggregated, scope_label)
-      lengths       = Settings.parse_lengths(Settings.source_lengths_str)
-      lengths       = [200.0] if lengths.empty?
-      solver        = SOLVERS.fetch(Settings.solver_name, Optimizer::GREEDY)
-      cross_results = Optimizer.optimize_by_cross(aggregated, lengths, Settings.cut_loss, solver: solver)
-      order         = Optimizer.build_order(cross_results)
-
-      dialog = build_dialog
-      setup_callbacks(dialog, instances, aggregated)
-
-      # Send initial data once the dialog DOM signals it is ready.
       dialog.add_action_callback('ready') do |_|
-        payload = build_init_payload(instances, aggregated, cross_results, order, lengths, scope_label)
+        payload = build_init_payload(instances, aggregated, last_result, scope_label)
         dialog.execute_script("initData(#{JSON.generate(payload)})")
+      end
+
+      dialog.add_action_callback('recalculate') do |_, params|
+        parts       = params.to_s.split('|')
+        next unless parts.size >= 2
+        lengths_str = parts[0]
+        cut_loss    = parts[1].to_f
+        solver_name = parts[2].to_s
+        next if Settings.parse_lengths(lengths_str).empty? || cut_loss < 0
+
+        last_result = recalculate.call(lengths_str, cut_loss, solver_name)
+        push_updates(dialog, aggregated, last_result)
+      end
+
+      dialog.add_action_callback('save_instances_csv') { |_| Exporter.save_instances_csv(instances) }
+
+      dialog.add_action_callback('save_aggregated_csv') do |_|
+        r = last_result
+        Exporter.save_aggregated_csv(aggregated, r[:cross_results], r[:order], r[:lengths], r[:cut_loss])
       end
 
       dialog.set_file(DIALOG_FILE)
@@ -52,42 +67,14 @@ module AutoCut
         )
       end
 
-      def setup_callbacks(dialog, instances, aggregated)
-        dialog.add_action_callback('recalculate') do |_, params|
-          # params format: "200,300|0.4|bf"  or  "200,300|0.4|greedy"
-          parts = params.to_s.split('|')
-          next unless parts.size >= 2
-          lengths_str = parts[0]
-          cut_loss    = parts[1].to_f
-          solver_name = parts[2].to_s
-          lengths     = Settings.parse_lengths(lengths_str)
-          next if lengths.empty? || cut_loss < 0
-          Settings.save(lengths_str, cut_loss, solver_name)
-
-          solver        = SOLVERS.fetch(solver_name, Optimizer::GREEDY)
-          cross_results = Optimizer.optimize_by_cross(aggregated, lengths, cut_loss, solver: solver)
-          order         = Optimizer.build_order(cross_results)
-          dialog.execute_script("updateAggregated(#{JSON.generate(serialize_agg_rows(aggregated, lengths, cut_loss))})")
-          dialog.execute_script("updateCutPlans(#{JSON.generate(serialize_cross_plans(cross_results))})")
-          dialog.execute_script("updateOrderSummary(#{JSON.generate(serialize_order_rows(order, lengths))})")
-          dialog.execute_script("updateMbVolume(#{JSON.generate(serialize_mb_volume(cross_results))})")
-        end
-
-        dialog.add_action_callback('save_instances_csv') do |_|
-          Exporter.save_instances_csv(instances)
-        end
-
-        dialog.add_action_callback('save_aggregated_csv') do |_|
-          lengths       = Settings.parse_lengths(Settings.source_lengths_str)
-          lengths       = [200.0] if lengths.empty?
-          solver        = SOLVERS.fetch(Settings.solver_name, Optimizer::GREEDY)
-          cross_results = Optimizer.optimize_by_cross(aggregated, lengths, Settings.cut_loss, solver: solver)
-          order         = Optimizer.build_order(cross_results)
-          Exporter.save_aggregated_csv(aggregated, cross_results, order, lengths, Settings.cut_loss)
-        end
+      def push_updates(dialog, aggregated, result)
+        dialog.execute_script("updateAggregated(#{JSON.generate(serialize_agg_rows(aggregated, result[:lengths], result[:cut_loss]))})")
+        dialog.execute_script("updateCutPlans(#{JSON.generate(serialize_cross_plans(result[:cross_results]))})")
+        dialog.execute_script("updateOrderSummary(#{JSON.generate(serialize_order_rows(result[:order], result[:lengths]))})")
+        dialog.execute_script("updateMbVolume(#{JSON.generate(serialize_mb_volume(result[:cross_results]))})")
       end
 
-      def build_init_payload(instances, aggregated, cross_results, order, lengths, scope_label)
+      def build_init_payload(instances, aggregated, result, scope_label)
         {
           scope:        scope_label,
           totalCount:   instances.size,
@@ -98,10 +85,10 @@ module AutoCut
           bfLimit:      AutoCut::BF_LIMIT,
           toleranceMm:  AutoCut::TOLERANCE_MM,
           instanceRows: serialize_instance_rows(aggregated),
-          aggRows:      serialize_agg_rows(aggregated, lengths, Settings.cut_loss),
-          crossPlans:   serialize_cross_plans(cross_results),
-          orderRows:    serialize_order_rows(order, lengths),
-          mbVolRows:    serialize_mb_volume(cross_results)
+          aggRows:      serialize_agg_rows(aggregated, result[:lengths], result[:cut_loss]),
+          crossPlans:   serialize_cross_plans(result[:cross_results]),
+          orderRows:    serialize_order_rows(result[:order], result[:lengths]),
+          mbVolRows:    serialize_mb_volume(result[:cross_results])
         }
       end
 
