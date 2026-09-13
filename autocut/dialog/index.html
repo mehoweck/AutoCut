@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>StockCut Optimizer &amp; BOM</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="topbar">
+  <h2>StockCut Optimizer &amp; BOM</h2>
+  <span class="scope-label" id="scope-label"></span>
+  <button class="tab-btn active" id="btn-inst" onclick="switchTab('instances')">Components</button>
+  <button class="tab-btn"        id="btn-agg"  onclick="switchTab('aggregated')">Order</button>
+  <button class="save-btn" onclick="doSave()">&#128190; Save CSV</button>
+</div>
+
+<div id="inst-controls">
+  <label>Unit:</label>
+  <select id="unit-select" onchange="changeUnit()">
+    <option value="cm" selected>centimetres [cm]</option>
+    <option value="mm">millimetres [mm]</option>
+    <option value="m">metres [m]</option>
+  </select>
+</div>
+
+<div id="agg-controls">
+  <label title="Comma-separated list of available stock lengths, e.g. 100,150,200,300">Stock lengths [cm]:</label>
+  <input id="src-len" type="text" style="width:160px" placeholder="e.g. 100,150,200,300">
+  <label title="Blade kerf or material loss per cut">Kerf loss [cm]:</label>
+  <input id="cut-loss" type="number" min="0" step="0.1" style="width:55px">
+  <button class="recalc-btn" onclick="doRecalc()">&#8635; Recalculate</button>
+  <select id="algo-select" title="Greedy: fast, good result. Brute force: optimal but slower (limit applies per cross-section)." style="font-size:12px;padding:2px 4px;border:1px solid #aaa;border-radius:3px">
+    <option value="greedy">Greedy</option>
+    <option value="bf">Brute force</option>
+  </select>
+  <span class="stats-label" id="agg-stats"></span>
+</div>
+
+<div class="view active" id="view-instances">
+  <table id="tbl-inst">
+    <thead>
+      <tr>
+        <th title="Component definition name"                              onclick="sortTable('tbl-inst',0,true)">Name</th>
+        <th title="Element length derived from bounding box"               onclick="sortTable('tbl-inst',1)"      id="inst-len-hdr">Length [cm]</th>
+        <th title="Number of instances in model"                           onclick="sortTable('tbl-inst',2)">Qty</th>
+        <th title="Cross-section dimensions match name (tolerance 1 mm)"   onclick="sortTable('tbl-inst',3)">OK</th>
+      </tr>
+    </thead>
+    <tbody id="tbl-inst-body"></tbody>
+  </table>
+</div>
+
+<div class="view" id="view-aggregated">
+  <table id="tbl-agg">
+    <thead>
+      <tr>
+        <th title="Component definition name"               onclick="sortTable('tbl-agg',0,true)">Name</th>
+        <th title="Cross-section from name (e.g. 45x95)"    onclick="sortTable('tbl-agg',1)">Section</th>
+        <th title="Element length [cm]"                     onclick="sortTable('tbl-agg',2)">Length<br>[cm]</th>
+        <th title="Quantity in model"                       onclick="sortTable('tbl-agg',3)">Qty</th>
+        <th title="Optimal stock length(s) to order"        onclick="sortTable('tbl-agg',4)">Stock<br>[cm]</th>
+        <th title="Number of stock pieces needed"           onclick="sortTable('tbl-agg',5)">Pieces<br>[qty]</th>
+        <th title="Cut plan: elements assigned to each stock piece" onclick="sortTable('tbl-agg',6,true)">Cut plan</th>
+        <th title="Cross-section dimensions match name"     onclick="sortTable('tbl-agg',7)">OK</th>
+      </tr>
+    </thead>
+    <tbody id="tbl-agg-body"></tbody>
+  </table>
+
+  <div class="section-title"><span class="icon">&#128722;</span>Order summary</div>
+  <table class="summary-table">
+    <thead>
+      <tr>
+        <th title="Material cross-section">Section</th>
+        <th title="Stock length to order [cm]">Stock length [cm]</th>
+        <th title="Number of pieces to order">Qty [pcs]</th>
+        <th title="Total length of this stock type [lm]">Total [lm]</th>
+      </tr>
+    </thead>
+    <tbody id="order-body"></tbody>
+  </table>
+
+  <div class="section-title"><span class="icon">&#128207;</span>Linear metres</div>
+  <table class="summary-table">
+    <thead>
+      <tr>
+        <th title="Material cross-section">Section</th>
+        <th title="Total length of all elements of this section [lm]">Total [lm]</th>
+      </tr>
+    </thead>
+    <tbody id="mb-body"></tbody>
+  </table>
+
+  <div class="section-title"><span class="icon">&#9633;</span>Volume</div>
+  <table class="summary-table">
+    <thead>
+      <tr>
+        <th title="Material cross-section">Section</th>
+        <th title="Total volume of all elements of this section [m³]">Volume [m&#179;]</th>
+      </tr>
+    </thead>
+    <tbody id="vol-body"></tbody>
+  </table>
+</div>
+
+<div id="footer">
+  Click a column header to sort &nbsp;|&nbsp;
+  Red rows = dimension mismatch (name vs bounding box &gt; 1 mm)
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
