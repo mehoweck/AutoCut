@@ -11,14 +11,14 @@ module AutoCut
       Sketchup.read_default(AutoCut::PREF_KEY, 'cut_loss', 0.4).to_f
     end
 
-    def self.use_brute_force
-      Sketchup.read_default(AutoCut::PREF_KEY, 'use_bf', false)
+    def self.solver_name
+      Sketchup.read_default(AutoCut::PREF_KEY, 'solver', 'greedy').to_s
     end
 
-    def self.save(lengths_str, cut_loss_val, use_bf)
+    def self.save(lengths_str, cut_loss_val, solver_name)
       Sketchup.write_default(AutoCut::PREF_KEY, 'source_lengths', lengths_str.to_s)
       Sketchup.write_default(AutoCut::PREF_KEY, 'cut_loss',       cut_loss_val.to_f)
-      Sketchup.write_default(AutoCut::PREF_KEY, 'use_bf',         use_bf)
+      Sketchup.write_default(AutoCut::PREF_KEY, 'solver',         solver_name.to_s)
     end
 
     def self.parse_lengths(str)

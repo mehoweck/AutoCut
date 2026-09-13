@@ -24,7 +24,7 @@ function initData(data) {
 
   document.getElementById('src-len').value     = data.srcLengths;
   document.getElementById('cut-loss').value    = data.cutLoss;
-  document.getElementById('algo-select').value = data.useBf ? 'bf' : 'greedy';
+  document.getElementById('algo-select').value = data.solverName || 'greedy';
 
   updateInstances(data.instanceRows);
   updateAggregated(data.aggRows);

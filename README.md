@@ -1,7 +1,6 @@
 # AutoCut — StockCut Optimizer & BOM
 
-A SketchUp extension that scans a model for lumber components, builds a bill of
-materials, and computes an optimised cut plan for ordering stock lengths.
+A SketchUp extension that scans a model for lumber components, builds a bill of materials, and computes an optimised cut plan for ordering stock lengths.
 
 ## Features
 
@@ -19,8 +18,7 @@ materials, and computes an optimised cut plan for ordering stock lengths.
 
 ## Component naming convention
 
-Component definition names must start with the cross-section in the format
-`<width>x<height>`, e.g.:
+Component definition names must start with the cross-section in the format `<width>x<height>`, e.g.:
 
 ```
 45x95_joist
@@ -28,10 +26,8 @@ Component definition names must start with the cross-section in the format
 18x18
 ```
 
-The extension extracts the two cross-section dimensions from the name and
-identifies the longest remaining bounding-box axis as the element length.
-A row is marked invalid (red) when the bbox dimensions do not match the name
-within a 1 mm tolerance.
+The extension extracts the two cross-section dimensions from the name and identifies the longest remaining bounding-box axis as the element length.
+A row is marked invalid (red) when the bbox dimensions do not match the name within a 1 mm tolerance.
 
 ---
 

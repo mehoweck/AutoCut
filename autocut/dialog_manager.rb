@@ -6,10 +6,16 @@ module AutoCut
   module DialogManager
     DIALOG_FILE = File.join(__dir__, 'dialog', 'index.html')
 
+    SOLVERS = {
+      'greedy' => Optimizer::GREEDY,
+      'bf'     => Optimizer::BRUTE_FORCE
+    }.freeze
+
     def self.show(instances, aggregated, scope_label)
       lengths   = Settings.parse_lengths(Settings.source_lengths_str)
       lengths   = [200.0] if lengths.empty?
-      optimized = Optimizer.optimize_all(aggregated, lengths, Settings.cut_loss, Settings.use_brute_force)
+      solver    = SOLVERS.fetch(Settings.solver_name, Optimizer::GREEDY)
+      optimized = Optimizer.optimize_all(aggregated, lengths, Settings.cut_loss, solver: solver)
       order     = Optimizer.build_order(optimized)
 
       dialog = build_dialog
@@ -53,12 +59,13 @@ module AutoCut
           next unless parts.size >= 2
           lengths_str = parts[0]
           cut_loss    = parts[1].to_f
-          use_bf      = parts[2].to_s == 'bf'
+          solver_name = parts[2].to_s
           lengths     = Settings.parse_lengths(lengths_str)
           next if lengths.empty? || cut_loss < 0
-          Settings.save(lengths_str, cut_loss, use_bf)
+          Settings.save(lengths_str, cut_loss, solver_name)
 
-          optimized = Optimizer.optimize_all(aggregated, lengths, cut_loss, use_bf)
+          solver    = SOLVERS.fetch(solver_name, Optimizer::GREEDY)
+          optimized = Optimizer.optimize_all(aggregated, lengths, cut_loss, solver: solver)
           order     = Optimizer.build_order(optimized)
           dialog.execute_script("updateAggregated(#{JSON.generate(serialize_agg_rows(optimized))})")
           dialog.execute_script("updateOrderSummary(#{JSON.generate(serialize_order_rows(order, lengths))})")
@@ -72,7 +79,8 @@ module AutoCut
         dialog.add_action_callback('save_aggregated_csv') do |_|
           lengths   = Settings.parse_lengths(Settings.source_lengths_str)
           lengths   = [200.0] if lengths.empty?
-          optimized = Optimizer.optimize_all(aggregated, lengths, Settings.cut_loss, Settings.use_brute_force)
+          solver    = SOLVERS.fetch(Settings.solver_name, Optimizer::GREEDY)
+          optimized = Optimizer.optimize_all(aggregated, lengths, Settings.cut_loss, solver: solver)
           order     = Optimizer.build_order(optimized)
           Exporter.save_aggregated_csv(optimized, order, lengths, Settings.cut_loss)
         end
@@ -85,7 +93,7 @@ module AutoCut
           invalidCount: instances.count { |i| !i[:valid] },
           srcLengths:   Settings.source_lengths_str,
           cutLoss:      Settings.cut_loss,
-          useBf:        Settings.use_brute_force,
+          solverName:   Settings.solver_name,
           bfLimit:      AutoCut::BF_LIMIT,
           toleranceMm:  AutoCut::TOLERANCE_MM,
           instanceRows: serialize_instance_rows(optimized),
