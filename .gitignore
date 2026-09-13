@@ -1,6 +1,10 @@
 # macOS
 .DS_Store
 
+# JetBrains IDEs
+.idea/
+*.iml
+
 # SketchUp backup files
 *.skb
 
