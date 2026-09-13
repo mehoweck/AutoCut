@@ -1,0 +1,9 @@
+# macOS
+.DS_Store
+
+# SketchUp backup files
+*.skb
+
+# Temp / editor
+*.swp
+*~
