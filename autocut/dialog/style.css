@@ -214,6 +214,30 @@ tr.order-sep td {
   height: 4px;
 }
 
+.cross-plan-header {
+  font-size: 12px;
+  font-weight: bold;
+  color: #2c3e50;
+  background: #ecf0f1;
+  padding: 4px 8px;
+  border: 1px solid #ddd;
+  border-bottom: none;
+  margin-top: 10px;
+}
+
+.cut-plan-table {
+  margin-bottom: 0;
+}
+
+.unfit-warning {
+  font-size: 11px;
+  color: #c0392b;
+  padding: 3px 8px;
+  background: #fff0f0;
+  border: 1px solid #ddd;
+  border-top: none;
+}
+
 /* ── Footer ───────────────────────────────────────────────────────────────── */
 
 #footer {

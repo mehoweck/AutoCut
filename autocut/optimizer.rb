@@ -2,9 +2,10 @@
 # 1-D bin-packing optimizer for stock cutting.
 #
 # Public API:
-#   Optimizer.optimize(pieces, lengths, cut_loss, solver: Optimizer::GREEDY) → { bins:, unfit: }
-#   Optimizer.optimize_all(aggregated, lengths, cut_loss, solver: Optimizer::GREEDY) → augmented groups
-#   Optimizer.build_order(optimized_groups) → { cross => { source_len => count } }
+#   Optimizer.optimize(pieces, lengths, cut_loss, solver: GREEDY) → { bins:, unfit: }
+#   Optimizer.optimize_by_cross(aggregated, lengths, cut_loss, solver: GREEDY)
+#     → { cross_section_string => { bins:, unfit_count: } }
+#   Optimizer.build_order(cross_results) → { cross => { source_len => count } }
 #
 # Built-in solvers (respond to #call(pieces, lengths, cut_loss) → bins):
 #   Optimizer::GREEDY       — greedy first-fit decreasing, O(n²), fast
@@ -15,6 +16,7 @@ module AutoCut
     # Tolerance for floating-point bin-space comparisons [cm].
     FLOAT_EPS = 0.0001
 
+    # Low-level primitive: optimizes a flat list of pieces against available lengths.
     # Returns { bins: Array, unfit: Array }.
     # Each bin: { source_len: Float, cuts: [Float], rest: Float }
     def self.optimize(pieces, lengths, cut_loss, solver: GREEDY)
@@ -27,29 +29,35 @@ module AutoCut
       { bins: bins, unfit: unfit }
     end
 
-    # Runs optimize for every aggregated group; returns groups augmented with :bins and :unfit_count.
-    def self.optimize_all(aggregated, lengths, cut_loss, solver: GREEDY)
-      aggregated.map do |g|
-        len = g[:length_cm].to_f
-        if len > 0 && g[:count] > 0 && !lengths.empty?
-          result = optimize(Array.new(g[:count], len), lengths, cut_loss, solver: solver)
-          g.merge(bins: result[:bins], unfit_count: result[:unfit].size, opt_lengths: lengths)
-        else
-          g.merge(bins: [], unfit_count: 0, opt_lengths: lengths)
-        end
+    # Optimizes all pieces of each cross-section together, so pieces from different
+    # component definitions sharing the same cross-section can fill the same stock piece.
+    # Returns { cross_section_string => { bins: Array, unfit_count: Integer } }
+    def self.optimize_by_cross(aggregated, lengths, cut_loss, solver: GREEDY)
+      return {} if lengths.empty?
+
+      aggregated.group_by { |g| g[:cross] }.each_with_object({}) do |(cross, groups), results|
+        next if cross == 'N/A'
+
+        pieces = groups.flat_map { |g|
+          len = g[:length_cm].to_f
+          len > 0 ? Array.new(g[:count], len) : []
+        }
+        next if pieces.empty?
+
+        result = optimize(pieces, lengths, cut_loss, solver: solver)
+        results[cross] = { bins: result[:bins], unfit_count: result[:unfit].size }
       end
     end
 
     # Builds order summary: { cross_section_string => { source_length => piece_count } }
-    def self.build_order(optimized_groups)
-      order = {}
-      optimized_groups.each do |g|
-        order[g[:cross]] ||= {}
-        g[:bins].each do |bin|
-          order[g[:cross]][bin[:source_len]] = (order[g[:cross]][bin[:source_len]] || 0) + 1
+    def self.build_order(cross_results)
+      cross_results.each_with_object({}) do |(cross, result), order|
+        order[cross] = {}
+        result[:bins].each do |bin|
+          sl = bin[:source_len]
+          order[cross][sl] = (order[cross][sl] || 0) + 1
         end
       end
-      order
     end
 
     # ── Solvers ───────────────────────────────────────────────────────────────

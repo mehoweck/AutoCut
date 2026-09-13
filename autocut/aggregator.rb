@@ -27,9 +27,9 @@ module AutoCut
     end
 
     # Total length [lm] per cross-section string, derived from optimized group data.
-    def self.linear_metres(optimized_groups)
+    def self.linear_metres(aggregated)
       totals = {}
-      optimized_groups.each do |g|
+      aggregated.each do |g|
         next if g[:cross] == 'N/A'
         len_cm = g[:length_cm].to_f
         next if len_cm <= 0

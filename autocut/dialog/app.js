@@ -28,6 +28,7 @@ function initData(data) {
 
   updateInstances(data.instanceRows);
   updateAggregated(data.aggRows);
+  updateCutPlans(data.crossPlans);
   updateOrderSummary(data.orderRows);
   updateMbVolume(data.mbVolRows);
   changeUnit();
@@ -112,40 +113,53 @@ function updateAggregated(rows) {
   tbody.innerHTML = '';
   rows.forEach(function (g) {
     var cls = (g.invalid || g.unfit) ? ' class="row-invalid"' : '';
-    var ok  = g.invalid ? '&#9888;' : '&#10003;';
-    var srcLens, nBins, plan;
-
-    if (g.unfit) {
-      var tip = 'Element ' + g.length + ' cm exceeds all available stock lengths';
-      srcLens = '<span style="color:#c0392b;font-weight:bold" title="' + tip + '">Too long!</span>';
-      nBins   = '<span style="color:#c0392b">&mdash;</span>';
-      plan    = '<span style="color:#c0392b" title="' + tip + '">No matching stock</span>';
-    } else {
-      srcLens = [...new Set(g.bins.map(function (b) { return b.src; }))]
-        .sort(function(a,b){return a-b;})
-        .map(function (s) { return Math.round(s); }).join(', ') || '&mdash;';
-      nBins = g.bins.length || '&mdash;';
-      plan  = g.bins.map(function (b) {
-        var cuts = b.cuts.map(function (c) { return Math.round(c); }).join('+');
-        var rest = b.rest > 0.05 ? ' r' + Math.round(b.rest) : '';
-        return Math.round(b.src) + '(' + cuts + rest + ')';
-      }).join(' | ') || '&mdash;';
-    }
-
+    var ok  = g.invalid ? '&#9888;' : (g.unfit ? '<span title="Exceeds available stock">&#9888;</span>' : '&#10003;');
     tbody.innerHTML +=
       '<tr' + cls + '>' +
       '<td class="name-col" title="' + g.name + '">' + g.name + '</td>' +
       '<td>' + g.cross  + '</td>' +
       '<td>' + g.length + '</td>' +
       '<td><b>' + g.count + '</b></td>' +
-      '<td>' + srcLens + '</td>' +
-      '<td><b>' + nBins + '</b></td>' +
-      '<td class="plan-col" title="' + plan + '">' + plan + '</td>' +
       '<td style="text-align:center">' + ok + '</td>' +
       '</tr>';
   });
   var stats = document.getElementById('agg-stats');
   if (stats) stats.textContent = rows.length + ' definitions';
+}
+
+function updateCutPlans(crossPlans) {
+  var container = document.getElementById('cut-plans-body');
+  container.innerHTML = '';
+  if (!crossPlans || crossPlans.length === 0) {
+    container.innerHTML = '<p style="color:#888;font-size:11px;padding:4px 0">No cut plans available.</p>';
+    return;
+  }
+  crossPlans.forEach(function (cp) {
+    var rows = cp.bins.map(function (b, i) {
+      var cuts = b.cuts.map(function (c) { return +c.toFixed(1); }).join(' + ');
+      var rest = b.rest > 0.05 ? ' &nbsp;<span style="color:#888">rest ' + b.rest.toFixed(1) + '</span>' : '';
+      return '<tr>' +
+        '<td style="text-align:right;color:#888;width:30px">' + (i + 1) + '</td>' +
+        '<td style="text-align:right;width:60px">' + Math.round(b.src) + '</td>' +
+        '<td class="plan-col">' + cuts + rest + '</td>' +
+        '</tr>';
+    }).join('');
+
+    var unfit = cp.unfitCount > 0
+      ? '<div class="unfit-warning">&#9888; ' + cp.unfitCount + ' piece(s) exceed available stock lengths</div>'
+      : '';
+
+    container.innerHTML +=
+      '<div class="cross-plan-header">' + cp.cross + '</div>' +
+      '<table class="summary-table cut-plan-table" style="width:100%">' +
+        '<thead><tr>' +
+          '<th style="width:30px" title="Board number">#</th>' +
+          '<th style="width:60px" title="Stock length [cm]">Stock [cm]</th>' +
+          '<th title="Cut lengths [cm]">Cuts [cm]</th>' +
+        '</tr></thead>' +
+        '<tbody>' + rows + '</tbody>' +
+      '</table>' + unfit;
+  });
 }
 
 function updateOrderSummary(rows) {

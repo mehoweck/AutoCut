@@ -55,18 +55,18 @@
   <table id="tbl-agg">
     <thead>
       <tr>
-        <th title="Component definition name"               onclick="sortTable('tbl-agg',0,true)">Name</th>
-        <th title="Cross-section from name (e.g. 45x95)"    onclick="sortTable('tbl-agg',1)">Section</th>
-        <th title="Element length [cm]"                     onclick="sortTable('tbl-agg',2)">Length<br>[cm]</th>
-        <th title="Quantity in model"                       onclick="sortTable('tbl-agg',3)">Qty</th>
-        <th title="Optimal stock length(s) to order"        onclick="sortTable('tbl-agg',4)">Stock<br>[cm]</th>
-        <th title="Number of stock pieces needed"           onclick="sortTable('tbl-agg',5)">Pieces<br>[qty]</th>
-        <th title="Cut plan: elements assigned to each stock piece" onclick="sortTable('tbl-agg',6,true)">Cut plan</th>
-        <th title="Cross-section dimensions match name"     onclick="sortTable('tbl-agg',7)">OK</th>
+        <th title="Component definition name"                              onclick="sortTable('tbl-agg',0,true)">Name</th>
+        <th title="Cross-section from name (e.g. 45x95)"                   onclick="sortTable('tbl-agg',1)">Section</th>
+        <th title="Element length [cm]"                                    onclick="sortTable('tbl-agg',2)">Length<br>[cm]</th>
+        <th title="Quantity in model"                                      onclick="sortTable('tbl-agg',3)">Qty</th>
+        <th title="Cross-section dimensions match name (tolerance 1 mm)"   onclick="sortTable('tbl-agg',4)">OK</th>
       </tr>
     </thead>
     <tbody id="tbl-agg-body"></tbody>
   </table>
+
+  <div class="section-title"><span class="icon">&#9988;</span>Cut plans <span id="cut-plans-algo" style="font-weight:normal;color:#888;font-size:11px"></span></div>
+  <div id="cut-plans-body"></div>
 
   <div class="section-title"><span class="icon">&#128722;</span>Order summary</div>
   <table class="summary-table">

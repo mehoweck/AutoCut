@@ -20,7 +20,7 @@ module AutoCut
       end
     end
 
-    def self.save_aggregated_csv(optimized_groups, order, lengths, cut_loss_val)
+    def self.save_aggregated_csv(aggregated, cross_results, order, lengths, cut_loss_val)
       path = UI.savepanel('Save as CSV', Dir.home, 'components_aggregated.csv')
       return unless path
       path += '.csv' unless path.downcase.end_with?('.csv')
@@ -29,12 +29,22 @@ module AutoCut
         f.puts ''
 
         f.puts '## DETAILS'
-        f.puts %w[Name Cross_section Length_cm Qty Invalid Cut_plan].join(';')
-        optimized_groups.each do |g|
-          plan = g[:bins].map { |b|
-            "#{b[:source_len].to_i}cm(#{b[:cuts].map { |c| c.to_i }.join('+')})"
-          }.join(', ')
-          f.puts [g[:name], g[:cross], g[:length_cm], g[:count], g[:invalid_count], plan].join(';')
+        f.puts %w[Name Cross_section Length_cm Qty Invalid].join(';')
+        aggregated.each do |g|
+          f.puts [g[:name], g[:cross], g[:length_cm], g[:count], g[:invalid_count]].join(';')
+        end
+
+        f.puts ''
+        f.puts '## CUT_PLANS'
+        f.puts %w[Cross_section Board Stock_cm Cuts_cm Rest_cm].join(';')
+        cross_results.sort.each do |cross, result|
+          result[:bins].each_with_index do |bin, i|
+            cuts_str = bin[:cuts].map { |c| c.round(1) }.join(' + ')
+            f.puts [cross, i + 1, bin[:source_len].to_i, cuts_str, bin[:rest].round(1)].join(';')
+          end
+          if result[:unfit_count] > 0
+            f.puts [cross, '!', '—', "#{result[:unfit_count]} piece(s) too long for available stock", '—'].join(';')
+          end
         end
 
         f.puts ''
@@ -48,7 +58,7 @@ module AutoCut
           end
         end
 
-        lm_by_cross = Aggregator.linear_metres(optimized_groups)
+        lm_by_cross = Aggregator.linear_metres(aggregated)
 
         f.puts ''
         f.puts '## LINEAR_METRES'

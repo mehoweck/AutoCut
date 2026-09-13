@@ -12,18 +12,18 @@ module AutoCut
     }.freeze
 
     def self.show(instances, aggregated, scope_label)
-      lengths   = Settings.parse_lengths(Settings.source_lengths_str)
-      lengths   = [200.0] if lengths.empty?
-      solver    = SOLVERS.fetch(Settings.solver_name, Optimizer::GREEDY)
-      optimized = Optimizer.optimize_all(aggregated, lengths, Settings.cut_loss, solver: solver)
-      order     = Optimizer.build_order(optimized)
+      lengths       = Settings.parse_lengths(Settings.source_lengths_str)
+      lengths       = [200.0] if lengths.empty?
+      solver        = SOLVERS.fetch(Settings.solver_name, Optimizer::GREEDY)
+      cross_results = Optimizer.optimize_by_cross(aggregated, lengths, Settings.cut_loss, solver: solver)
+      order         = Optimizer.build_order(cross_results)
 
       dialog = build_dialog
       setup_callbacks(dialog, instances, aggregated)
 
       # Send initial data once the dialog DOM signals it is ready.
       dialog.add_action_callback('ready') do |_|
-        payload = build_init_payload(instances, optimized, order, lengths, scope_label)
+        payload = build_init_payload(instances, aggregated, cross_results, order, lengths, scope_label)
         dialog.execute_script("initData(#{JSON.generate(payload)})")
       end
 
@@ -64,12 +64,13 @@ module AutoCut
           next if lengths.empty? || cut_loss < 0
           Settings.save(lengths_str, cut_loss, solver_name)
 
-          solver    = SOLVERS.fetch(solver_name, Optimizer::GREEDY)
-          optimized = Optimizer.optimize_all(aggregated, lengths, cut_loss, solver: solver)
-          order     = Optimizer.build_order(optimized)
-          dialog.execute_script("updateAggregated(#{JSON.generate(serialize_agg_rows(optimized))})")
+          solver        = SOLVERS.fetch(solver_name, Optimizer::GREEDY)
+          cross_results = Optimizer.optimize_by_cross(aggregated, lengths, cut_loss, solver: solver)
+          order         = Optimizer.build_order(cross_results)
+          dialog.execute_script("updateAggregated(#{JSON.generate(serialize_agg_rows(aggregated, lengths, cut_loss))})")
+          dialog.execute_script("updateCutPlans(#{JSON.generate(serialize_cross_plans(cross_results))})")
           dialog.execute_script("updateOrderSummary(#{JSON.generate(serialize_order_rows(order, lengths))})")
-          dialog.execute_script("updateMbVolume(#{JSON.generate(serialize_mb_volume(optimized))})")
+          dialog.execute_script("updateMbVolume(#{JSON.generate(serialize_mb_volume(aggregated))})")
         end
 
         dialog.add_action_callback('save_instances_csv') do |_|
@@ -77,16 +78,16 @@ module AutoCut
         end
 
         dialog.add_action_callback('save_aggregated_csv') do |_|
-          lengths   = Settings.parse_lengths(Settings.source_lengths_str)
-          lengths   = [200.0] if lengths.empty?
-          solver    = SOLVERS.fetch(Settings.solver_name, Optimizer::GREEDY)
-          optimized = Optimizer.optimize_all(aggregated, lengths, Settings.cut_loss, solver: solver)
-          order     = Optimizer.build_order(optimized)
-          Exporter.save_aggregated_csv(optimized, order, lengths, Settings.cut_loss)
+          lengths       = Settings.parse_lengths(Settings.source_lengths_str)
+          lengths       = [200.0] if lengths.empty?
+          solver        = SOLVERS.fetch(Settings.solver_name, Optimizer::GREEDY)
+          cross_results = Optimizer.optimize_by_cross(aggregated, lengths, Settings.cut_loss, solver: solver)
+          order         = Optimizer.build_order(cross_results)
+          Exporter.save_aggregated_csv(aggregated, cross_results, order, lengths, Settings.cut_loss)
         end
       end
 
-      def build_init_payload(instances, optimized, order, lengths, scope_label)
+      def build_init_payload(instances, aggregated, cross_results, order, lengths, scope_label)
         {
           scope:        scope_label,
           totalCount:   instances.size,
@@ -96,36 +97,48 @@ module AutoCut
           solverName:   Settings.solver_name,
           bfLimit:      AutoCut::BF_LIMIT,
           toleranceMm:  AutoCut::TOLERANCE_MM,
-          instanceRows: serialize_instance_rows(optimized),
-          aggRows:      serialize_agg_rows(optimized),
+          instanceRows: serialize_instance_rows(aggregated),
+          aggRows:      serialize_agg_rows(aggregated, lengths, Settings.cut_loss),
+          crossPlans:   serialize_cross_plans(cross_results),
           orderRows:    serialize_order_rows(order, lengths),
-          mbVolRows:    serialize_mb_volume(optimized)
+          mbVolRows:    serialize_mb_volume(aggregated)
         }
       end
 
       # --- Serialization helpers ---
 
-      def serialize_instance_rows(optimized)
-        optimized.map do |g|
+      def serialize_instance_rows(aggregated)
+        aggregated.map do |g|
           {
-            name:      g[:name],
-            lengthMm:  g[:length_cm] ? (g[:length_cm].to_f * 10).round(1) : 0,
-            count:     g[:count],
-            invalid:   g[:invalid_count] > 0
+            name:     g[:name],
+            lengthMm: g[:length_cm] ? (g[:length_cm].to_f * 10).round(1) : 0,
+            count:    g[:count],
+            invalid:  g[:invalid_count] > 0
           }
         end
       end
 
-      def serialize_agg_rows(optimized)
-        optimized.map do |g|
+      def serialize_agg_rows(aggregated, lengths, cut_loss)
+        max_len = lengths.empty? ? 0 : lengths.max
+        aggregated.map do |g|
+          unfit = max_len > 0 && g[:length_cm].to_f > max_len - cut_loss + Optimizer::FLOAT_EPS
           {
             name:    g[:name],
             cross:   g[:cross],
             length:  g[:length_cm],
             count:   g[:count],
             invalid: g[:invalid_count] > 0,
-            unfit:   g[:unfit_count].to_i > 0,
-            bins:    g[:bins].map { |b| { src: b[:source_len], cuts: b[:cuts], rest: b[:rest] } }
+            unfit:   unfit
+          }
+        end
+      end
+
+      def serialize_cross_plans(cross_results)
+        cross_results.sort.map do |cross, result|
+          {
+            cross:      cross,
+            unfitCount: result[:unfit_count],
+            bins:       result[:bins].map { |b| { src: b[:source_len], cuts: b[:cuts], rest: b[:rest] } }
           }
         end
       end
@@ -142,8 +155,8 @@ module AutoCut
         rows
       end
 
-      def serialize_mb_volume(optimized)
-        Aggregator.linear_metres(optimized).sort.map do |cross, lm|
+      def serialize_mb_volume(aggregated)
+        Aggregator.linear_metres(aggregated).sort.map do |cross, lm|
           { cross: cross, lm: lm.round(3), m3: Aggregator.volume_m3(cross, lm.round(3)) }
         end
       end
