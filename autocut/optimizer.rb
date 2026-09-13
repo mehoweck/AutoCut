@@ -106,7 +106,9 @@ module AutoCut
         return greedy if greedy.size > AutoCut::BF_LIMIT
 
         bf = BFSolver.new(pieces, lengths, cut_loss, greedy).solve
-        bf.sum { |b| b[:source_len] } < greedy.sum { |b| b[:source_len] } ? bf : greedy
+        bf_cost     = bf.reduce(0.0)     { |s, b| s + b[:source_len] }
+        greedy_cost = greedy.reduce(0.0) { |s, b| s + b[:source_len] }
+        bf_cost < greedy_cost ? bf : greedy
       end
     end
 
@@ -136,7 +138,7 @@ module AutoCut
 
       def recurse(idx, bins)
         if idx == @pieces.size
-          cost = bins.sum { |b| b[:source_len] }
+          cost = bins.reduce(0.0) { |s, b| s + b[:source_len] }
           if @best_cost.nil? || cost < @best_cost
             @best_cost = cost
             @best      = bins.map { |b| { source_len: b[:source_len], cuts: b[:cuts].dup, rest: b[:rest] } }
@@ -145,7 +147,7 @@ module AutoCut
         end
 
         piece        = @pieces[idx]
-        current_cost = bins.sum { |b| b[:source_len] }
+        current_cost = bins.reduce(0.0) { |s, b| s + b[:source_len] }
         return if @best_cost && current_cost >= @best_cost  # prune worse branches
 
         # Option A: place piece into an existing bin (deduplicate by remaining space)

@@ -30,7 +30,7 @@ module AutoCut
     # Sums the source lengths of all stock pieces that will be ordered.
     def self.ordered_linear_metres(cross_results)
       cross_results.each_with_object({}) do |(cross, result), totals|
-        ordered_cm = result[:bins].sum { |b| b[:source_len] }
+        ordered_cm = result[:bins].reduce(0.0) { |s, b| s + b[:source_len] }
         totals[cross] = ordered_cm / 100.0
       end
     end
