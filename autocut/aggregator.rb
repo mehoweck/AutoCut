@@ -26,16 +26,13 @@ module AutoCut
       groups.values.sort_by { |g| g[:name] }
     end
 
-    # Total length [lm] per cross-section string, derived from optimized group data.
-    def self.linear_metres(aggregated)
-      totals = {}
-      aggregated.each do |g|
-        next if g[:cross] == 'N/A'
-        len_cm = g[:length_cm].to_f
-        next if len_cm <= 0
-        totals[g[:cross]] = (totals[g[:cross]] || 0.0) + g[:count] * len_cm / 100.0
+    # Total ordered stock [lm] per cross-section, derived from optimizer bin output.
+    # Sums the source lengths of all stock pieces that will be ordered.
+    def self.ordered_linear_metres(cross_results)
+      cross_results.each_with_object({}) do |(cross, result), totals|
+        ordered_cm = result[:bins].sum { |b| b[:source_len] }
+        totals[cross] = ordered_cm / 100.0
       end
-      totals
     end
 
     # Volume [m³] for a given cross-section string (e.g. "45x95") and total length in lm.

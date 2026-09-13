@@ -58,7 +58,7 @@ module AutoCut
           end
         end
 
-        lm_by_cross = Aggregator.linear_metres(aggregated)
+        lm_by_cross = Aggregator.ordered_linear_metres(cross_results)
 
         f.puts ''
         f.puts '## LINEAR_METRES'

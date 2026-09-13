@@ -70,7 +70,7 @@ module AutoCut
           dialog.execute_script("updateAggregated(#{JSON.generate(serialize_agg_rows(aggregated, lengths, cut_loss))})")
           dialog.execute_script("updateCutPlans(#{JSON.generate(serialize_cross_plans(cross_results))})")
           dialog.execute_script("updateOrderSummary(#{JSON.generate(serialize_order_rows(order, lengths))})")
-          dialog.execute_script("updateMbVolume(#{JSON.generate(serialize_mb_volume(aggregated))})")
+          dialog.execute_script("updateMbVolume(#{JSON.generate(serialize_mb_volume(cross_results))})")
         end
 
         dialog.add_action_callback('save_instances_csv') do |_|
@@ -101,7 +101,7 @@ module AutoCut
           aggRows:      serialize_agg_rows(aggregated, lengths, Settings.cut_loss),
           crossPlans:   serialize_cross_plans(cross_results),
           orderRows:    serialize_order_rows(order, lengths),
-          mbVolRows:    serialize_mb_volume(aggregated)
+          mbVolRows:    serialize_mb_volume(cross_results)
         }
       end
 
@@ -155,8 +155,8 @@ module AutoCut
         rows
       end
 
-      def serialize_mb_volume(aggregated)
-        Aggregator.linear_metres(aggregated).sort.map do |cross, lm|
+      def serialize_mb_volume(cross_results)
+        Aggregator.ordered_linear_metres(cross_results).sort.map do |cross, lm|
           { cross: cross, lm: lm.round(3), m3: Aggregator.volume_m3(cross, lm.round(3)) }
         end
       end
